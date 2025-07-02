@@ -87,7 +87,7 @@ def get_historical_returns(data):
             close_five_year = data[data.index <= five_years_ago]["Close"].iloc[-1]
             five_year_cagr = (data["Close"].iloc[-1] / close_five_year) ** (1/5) - 1
 
-        return one_year_return, five_year_cagr
+        return float(one_year_return), float(five_year_cagr)
     except:
         return None, None
 
@@ -143,8 +143,8 @@ with tab1:
                         st.metric("25th Percentile", f"${p25:.2f}")
                         st.metric("75th Percentile", f"${p75:.2f}")
                         st.metric("Probability > Current", f"{prob_up:.2%}")
-                        st.metric("1Y Historical Return", f"{one_year_return:.2%}" if one_year_return is not None else "N/A")
-                        st.metric("5Y CAGR", f"{five_year_cagr:.2%}" if five_year_cagr is not None else "N/A")
+                        st.metric("1Y Historical Return", f"{float(one_year_return):.2%}" if one_year_return is not None else "N/A")
+                        st.metric("5Y CAGR", f"{float(five_year_cagr):.2%}" if five_year_cagr is not None else "N/A")
                     with col1:
                         fig, ax = plt.subplots(figsize=(6, 4))
                         ax.plot(paths, linewidth=0.7)
@@ -243,10 +243,5 @@ with tab2:
                 st.metric("Probability > $100", f"{prob_above_100:.2%}")
                 st.metric("Sharpe Ratio", f"{sharpe_ratio:.2f}")
                 st.metric("Sortino Ratio", f"{sortino_ratio:.2f}")
-                st.metric("1Y Historical Return", f"{total_return_1y:.2%}" if total_return_1y is not None else "N/A")
-                st.metric("5Y CAGR", f"{cagr_5y:.2%}" if cagr_5y is not None else "N/A")
-
-            if show_debug:
-                st.write("Tickers:", ticker_list)
-                st.write("Weights:", weight_list)
-                st.write("Volatilities:", [get_implied_volatility(t) for t in ticker_list])
+                st.metric("1Y Historical Return", f"{float(total_return_1y):.2%}" if total_return_1y is not None else "N/A")
+                st.metric("5Y CAGR", f"{float(cagr_5y):.2%}" if cagr_5y is not None else "N/A")
