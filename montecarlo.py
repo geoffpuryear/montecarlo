@@ -91,8 +91,6 @@ with tab1:
 
                     beta = get_beta(ticker)
                     mu = (risk_free_rate + beta * (market_return - risk_free_rate)) if use_capm else 0.0
-                    if show_debug:
-                        st.code(f"{ticker} → μ: {mu:.4f}, σ: {sigma:.4f}, β: {beta:.2f}")
 
                     paths = simulate(current_price, mu, sigma, n_days, n_simulations)
                     ending_prices = paths[-1]
@@ -103,21 +101,20 @@ with tab1:
                     p75 = np.percentile(ending_prices, 75)
                     prob_up = np.mean(ending_prices > current_price)
 
-                    col1, col2, col3 = st.columns(3)
-                    col1.metric("📈 Mean Ending Price", f"${mean_price:.2f}")
-                    col2.metric("🔻 25th Percentile", f"${p25:.2f}")
-                    col3.metric("🔺 75th Percentile", f"${p75:.2f}")
-
-                    col4, col5 = st.columns(2)
-                    col4.metric("📊 Median", f"${median_price:.2f}")
-                    col5.metric("💡 Probability > Current", f"{prob_up:.2%}")
-
-                    fig, ax = plt.subplots()
-                    ax.plot(paths, linewidth=0.7)
-                    ax.set_title(f"Monte Carlo Simulation for {ticker}")
-                    ax.set_xlabel("Days")
-                    ax.set_ylabel("Simulated Price")
-                    st.pyplot(fig)
+                    col1, col2 = st.columns([2, 1])
+                    with col2:
+                        st.metric("Mean Ending Price", f"${mean_price:.2f}")
+                        st.metric("Median", f"${median_price:.2f}")
+                        st.metric("25th Percentile", f"${p25:.2f}")
+                        st.metric("75th Percentile", f"${p75:.2f}")
+                        st.metric("Probability > Current", f"{prob_up:.2%}")
+                    with col1:
+                        fig, ax = plt.subplots(figsize=(6, 4))
+                        ax.plot(paths, linewidth=0.7)
+                        ax.set_title(f"Monte Carlo Simulation for {ticker}")
+                        ax.set_xlabel("Days")
+                        ax.set_ylabel("Simulated Price")
+                        st.pyplot(fig)
 
                 except Exception as e:
                     st.error(f"Error processing {ticker}: {e}")
@@ -179,21 +176,23 @@ with tab2:
             downside_std = np.std(downside_returns) if len(downside_returns) > 0 else 1
             sortino_ratio = (mean_end - 100) / downside_std if downside_std > 0 else 0
 
-            st.subheader("📈 Portfolio Simulation Summary")
-            st.metric("Mean Ending Value", f"${mean_end:.2f}")
-            st.metric("Median Ending Value", f"${median_end:.2f}")
-            st.metric("5th Percentile", f"${p5:.2f}")
-            st.metric("95th Percentile", f"${p95:.2f}")
-            st.metric("Probability > $100", f"{prob_above_100:.2%}")
-            st.metric("Sharpe Ratio", f"{sharpe_ratio:.2f}")
-            st.metric("Sortino Ratio", f"{sortino_ratio:.2f}")
-
-            fig, ax = plt.subplots(figsize=(10, 5))
-            ax.plot(portfolio_paths, linewidth=0.5, alpha=0.7)
-            ax.set_title("Simulated Portfolio Value Over Time")
-            ax.set_xlabel("Days")
-            ax.set_ylabel("Portfolio Value ($)")
-            st.pyplot(fig)
+            col1, col2 = st.columns([2, 1])
+            with col1:
+                fig, ax = plt.subplots(figsize=(6, 4))
+                ax.plot(portfolio_paths, linewidth=0.5, alpha=0.7)
+                ax.set_title("Simulated Portfolio Value Over Time")
+                ax.set_xlabel("Days")
+                ax.set_ylabel("Portfolio Value ($)")
+                st.pyplot(fig)
+            with col2:
+                st.subheader("📈 Portfolio Summary")
+                st.metric("Mean Ending Value", f"${mean_end:.2f}")
+                st.metric("Median Ending Value", f"${median_end:.2f}")
+                st.metric("5th Percentile", f"${p5:.2f}")
+                st.metric("95th Percentile", f"${p95:.2f}")
+                st.metric("Probability > $100", f"{prob_above_100:.2%}")
+                st.metric("Sharpe Ratio", f"{sharpe_ratio:.2f}")
+                st.metric("Sortino Ratio", f"{sortino_ratio:.2f}")
 
             if show_debug:
                 st.write("Tickers:", ticker_list)
