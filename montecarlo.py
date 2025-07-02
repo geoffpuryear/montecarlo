@@ -192,7 +192,8 @@ with tab2:
             try:
                 if ticker == "FIXED_INCOME":
                     yield_value = portfolio_df.loc[i, "Yield"] or 0.04
-                    sim = np.full((n_days, n_simulations), 100 * (1 + yield_value) ** (np.arange(n_days) / 252).reshape(-1, 1))
+                    semi_annual_periods = np.floor(np.arange(n_days) / (252 / 2)).astype(int)
+                    sim = np.full((n_days, n_simulations), 100 * (1 + yield_value / 2) ** semi_annual_periods.reshape(-1, 1))
                     all_paths.append(sim)
                     all_data.append(None)
                     continue
