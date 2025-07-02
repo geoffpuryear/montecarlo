@@ -171,7 +171,7 @@ with tab2:
     st.header("Portfolio Simulation")
     st.markdown("### Portfolio Composition")
     portfolio_df = st.data_editor(
-    pd.DataFrame({"Ticker": ["AAPL", "MSFT", "TSLA"], "Weight": [0.4, 0.4, 0.2]}),
+    pd.DataFrame({"Ticker": ["AAPL", "MSFT", "TSLA", "FIXED_INCOME"], "Weight": [0.3, 0.3, 0.2, 0.2], "Yield": [None, None, None, 0.05]}),
     num_rows="dynamic",
     use_container_width=True,
     key="portfolio_input"
@@ -188,8 +188,14 @@ with tab2:
         all_data = []
         fallback_sigma = 0.20
 
-        for ticker in ticker_list:
+        for i, ticker in enumerate(ticker_list):
             try:
+                if ticker == "FIXED_INCOME":
+                    yield_value = portfolio_df.loc[i, "Yield"] or 0.04
+                    sim = np.full((n_days, n_simulations), 100 * (1 + yield_value) ** (np.arange(n_days) / 252).reshape(-1, 1))
+                    all_paths.append(sim)
+                    all_data.append(None)
+                    continue
                 data = fetch_data(ticker)
                 full_data = fetch_full_history(ticker)
                 if data is None or data.empty:
@@ -232,8 +238,8 @@ with tab2:
 
             try:
                 min_length = min([len(d) for d in all_data])
-                aligned_data = [d["Close"].iloc[-min_length:].pct_change().dropna() for d in all_data]
-                combined_returns = sum(w * r for w, r in zip(weight_list, aligned_data))
+                aligned_data = [d["Close"].iloc[-min_length:].pct_change().dropna() for d in all_data if d is not None]
+                combined_returns = sum(w * r for w, d, r in zip(weight_list, all_data, aligned_data) if d is not None)
 
                 prod_1y = (1 + combined_returns[-252:]).prod()
                 total_return_1y = float(prod_1y.item()) if hasattr(prod_1y, "item") else float(prod_1y - 1)
