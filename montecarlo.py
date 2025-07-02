@@ -63,7 +63,7 @@ if tickers:
                 data = fetch_data(ticker)
                 current_price = float(data["Close"].iloc[-1])
                 st.subheader(f"{ticker}")
-                st.metric("Current Price", f"${current_price:.2f}")
+                st.metric(f"{ticker} Current Price", f"${current_price:.2f}")
 
                 sigma = get_implied_volatility(ticker) if use_implied_vol == "Implied" else manual_sigma
                 if sigma is None or sigma < 1e-5:
@@ -79,16 +79,21 @@ if tickers:
 
                 paths = simulate(current_price, mu, sigma, n_days, n_simulations)
                 ending_prices = paths[-1]
+
+                mean_price = np.mean(ending_prices)
+                median_price = np.median(ending_prices)
+                p25 = np.percentile(ending_prices, 25)
+                p75 = np.percentile(ending_prices, 75)
                 prob_up = np.mean(ending_prices > current_price)
 
-                st.metric("Probability > Current Price", f"{prob_up:.2%}")
-                st.metric("Mean Ending Price", f"${np.mean(ending_prices):.2f}")
-                st.metric("Median Ending Price", f"${np.median(ending_prices):.2f}")
-                st.metric("25th Percentile", f"${np.percentile(ending_prices, 25):.2f}")
-                st.metric("75th Percentile", f"${np.percentile(ending_prices, 75):.2f}")
+                st.metric(f"{ticker} Probability > Current Price", f"{prob_up:.2%}")
+                st.metric(f"{ticker} Mean Ending Price", f"${mean_price:.2f}")
+                st.metric(f"{ticker} Median Ending Price", f"${median_price:.2f}")
+                st.metric(f"{ticker} 25th Percentile", f"${p25:.2f}")
+                st.metric(f"{ticker} 75th Percentile", f"${p75:.2f}")
 
                 fig, ax = plt.subplots()
-                ax.plot(paths)
+                ax.plot(paths, linewidth=0.7)
                 ax.set_title(f"Monte Carlo Simulation: {ticker}")
                 ax.set_xlabel("Days")
                 ax.set_ylabel("Price")
