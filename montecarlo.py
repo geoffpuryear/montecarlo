@@ -22,6 +22,8 @@ with st.sidebar:
     use_implied_vol = st.radio("Volatility Source", ["Implied", "Manual"], index=0)
     manual_sigma = st.number_input("Manual Volatility (e.g. 0.25)", value=0.25)
 
+    show_debug = st.checkbox("Show Debug Info")
+
 # === Data Utilities ===
 @st.cache_data
 def fetch_data(ticker):
@@ -65,37 +67,36 @@ if tickers:
     for i, ticker in enumerate(ticker_list):
         with tabs[i]:
             try:
-                # Fetch and display price
                 data = fetch_data(ticker)
                 current_price = float(data["Close"].iloc[-1])
                 st.subheader(f"{ticker} — Current Price: ${current_price:.2f}")
 
-                # Volatility
+                # === Volatility logic
                 sigma = get_implied_volatility(ticker) if use_implied_vol == "Implied" else manual_sigma
-                if sigma is None or sigma < 1e-5:
-                    st.warning("Implied volatility unavailable or too small. Using manual input.")
+                if sigma is None:
+                    st.warning(f"Could not retrieve implied volatility for {ticker}. Using manual or fallback value.")
                     sigma = manual_sigma
+                if sigma < 0.05:
+                    st.warning(f"Implied volatility for {ticker} is suspiciously low. Setting fallback value of 0.20.")
+                    sigma = 0.20  # fallback volatility
 
-                # Expected return
+                # === Return logic
                 beta = get_beta(ticker)
                 mu = (risk_free_rate + beta * (market_return - risk_free_rate)) if market_adjust else 0.0
 
-                st.markdown(f"**Volatility (σ):** {sigma:.2%}")
-                if market_adjust:
-                    st.markdown(f"**Expected return (μ):** {mu:.2%} (β = {beta:.2f})")
+                if show_debug:
+                    st.code(f"mu: {mu:.4f}, sigma: {sigma:.4f}, beta: {beta:.2f}")
 
-                # Run simulation
+                # === Simulate
                 paths = simulate(current_price, mu, sigma, n_days, n_simulations)
                 ending_prices = paths[-1]
 
-                # Summary stats
                 mean_price = np.mean(ending_prices)
                 median_price = np.median(ending_prices)
                 p25 = np.percentile(ending_prices, 25)
                 p75 = np.percentile(ending_prices, 75)
                 prob_up = np.mean(ending_prices > current_price)
 
-                # Layout results in 2 rows
                 col1, col2, col3 = st.columns(3)
                 col1.metric("📈 Mean Ending Price", f"${mean_price:.2f}")
                 col2.metric("🔻 25th Percentile", f"${p25:.2f}")
@@ -105,12 +106,12 @@ if tickers:
                 col4.metric("📊 Median", f"${median_price:.2f}")
                 col5.metric("💡 Probability > Current", f"{prob_up:.2%}")
 
-                # Plot simulations
+                # === Plot
                 fig, ax = plt.subplots()
                 ax.plot(paths, linewidth=0.7)
                 ax.set_title(f"Monte Carlo Simulation for {ticker}")
                 ax.set_xlabel("Days")
-                ax.set_ylabel("Price")
+                ax.set_ylabel("Simulated Price")
                 st.pyplot(fig)
 
             except Exception as e:
