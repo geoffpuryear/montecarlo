@@ -26,14 +26,24 @@ with st.sidebar:
 
 def fetch_data(ticker):
     try:
-        return yf.download(ticker, period="6mo", progress=False)
-    except:
+        df = yf.download(ticker, period="6mo", progress=False)
+        if df.empty:
+            st.warning(f"⚠️ Data for {ticker} returned empty. This might be due to rate limits or a bad connection.")
+            return None
+        return df
+    except Exception as e:
+        st.error(f"❌ Failed to fetch {ticker}: {e}")
         return None
 
 def fetch_full_history(ticker):
     try:
-        return yf.download(ticker, period="10y", progress=False)
-    except:
+        df = yf.download(ticker, period="10y", progress=False)
+        if df.empty:
+            st.warning(f"⚠️ Long-term data for {ticker} returned empty. May be rate-limited or a data issue.")
+            return None
+        return df
+    except Exception as e:
+        st.error(f"❌ Failed to fetch full history for {ticker}: {e}")
         return None
 
 def get_implied_volatility(ticker):
@@ -159,11 +169,16 @@ with tab1:
 # === Portfolio Simulation ===
 with tab2:
     st.header("Portfolio Simulation")
-    tickers_input = st.text_input("Enter tickers for portfolio (comma-separated)", "AAPL, MSFT, TSLA")
-    weights_input = st.text_input("Enter weights (comma-separated, must sum to 1)", "0.4, 0.4, 0.2")
-
-    ticker_list = [t.strip().upper() for t in tickers_input.split(",")]
-    weight_list = [float(w.strip()) for w in weights_input.split(",")]
+    st.markdown("### Portfolio Composition")
+portfolio_df = st.data_editor(
+    pd.DataFrame({"Ticker": ["AAPL", "MSFT", "TSLA"], "Weight": [0.4, 0.4, 0.2]}),
+    num_rows="dynamic",
+    use_container_width=True,
+    key="portfolio_input"
+)
+ticker_list = portfolio_df["Ticker"].str.upper().tolist()
+weight_list = portfolio_df["Weight"].tolist()
+    
 
     if len(ticker_list) != len(weight_list):
         st.error("Number of tickers and weights must match.")
@@ -220,8 +235,8 @@ with tab2:
                 min_length = min([len(d) for d in all_data])
                 aligned_data = [d["Close"].iloc[-min_length:].pct_change().dropna() for d in all_data]
                 combined_returns = sum(w * r for w, r in zip(weight_list, aligned_data))
-                total_return_1y = float((1 + combined_returns[-252:]).prod() - 1)
-                cagr_5y = float((1 + combined_returns[-1260:]).prod() ** (1/5) - 1)
+                total_return_1y = float(((1 + combined_returns[-252:]).prod()).item() if hasattr((1 + combined_returns[-252:]).prod(), 'item') else (1 + combined_returns[-252:]).prod() - 1)
+                cagr_5y = float(((1 + combined_returns[-1260:]).prod()) ** (1/5) - 1)
             except:
                 total_return_1y = None
                 cagr_5y = None
