@@ -54,42 +54,45 @@ def simulate(S0, mu, sigma, n_days, n_simulations):
     return paths
 
 if tickers:
-    for ticker in tickers.split(","):
-        ticker = ticker.strip().upper()
-        try:
-            data = fetch_data(ticker)
-            current_price = float(data["Close"].iloc[-1])
-            st.subheader(f"{ticker}")
-            st.metric("Current Price", f"${current_price:.2f}")
+    ticker_list = [t.strip().upper() for t in tickers.split(",")]
+    tabs = st.tabs(ticker_list)
 
-            sigma = get_implied_volatility(ticker) if use_implied_vol == "Implied" else manual_sigma
-            if sigma is None or sigma < 1e-5:
-                st.warning("Implied volatility unavailable or too small. Using manual input.")
-                sigma = manual_sigma
+    for i, ticker in enumerate(ticker_list):
+        with tabs[i]:
+            try:
+                data = fetch_data(ticker)
+                current_price = float(data["Close"].iloc[-1])
+                st.subheader(f"{ticker}")
+                st.metric("Current Price", f"${current_price:.2f}")
 
-            beta = get_beta(ticker)
-            mu = (risk_free_rate + beta * (market_return - risk_free_rate)) if market_adjust else 0.0
+                sigma = get_implied_volatility(ticker) if use_implied_vol == "Implied" else manual_sigma
+                if sigma is None or sigma < 1e-5:
+                    st.warning("Implied volatility unavailable or too small. Using manual input.")
+                    sigma = manual_sigma
 
-            st.write(f"Volatility: {sigma:.2%}")
-            if market_adjust:
-                st.write(f"Expected return via CAPM: {mu:.2%} (Beta = {beta:.2f})")
+                beta = get_beta(ticker)
+                mu = (risk_free_rate + beta * (market_return - risk_free_rate)) if market_adjust else 0.0
 
-            paths = simulate(current_price, mu, sigma, n_days, n_simulations)
-            ending_prices = paths[-1]
-            prob_up = np.mean(ending_prices > current_price)
+                st.write(f"Volatility: {sigma:.2%}")
+                if market_adjust:
+                    st.write(f"Expected return via CAPM: {mu:.2%} (Beta = {beta:.2f})")
 
-            st.metric("Probability > Current Price", f"{prob_up:.2%}")
-            st.metric("Mean Ending Price", f"${np.mean(ending_prices):.2f}")
-            st.metric("Median Ending Price", f"${np.median(ending_prices):.2f}")
-            st.metric("25th Percentile", f"${np.percentile(ending_prices, 25):.2f}")
-            st.metric("75th Percentile", f"${np.percentile(ending_prices, 75):.2f}")
+                paths = simulate(current_price, mu, sigma, n_days, n_simulations)
+                ending_prices = paths[-1]
+                prob_up = np.mean(ending_prices > current_price)
 
-            fig, ax = plt.subplots()
-            ax.plot(paths)
-            ax.set_title(f"Monte Carlo Simulation: {ticker}")
-            ax.set_xlabel("Days")
-            ax.set_ylabel("Price")
-            st.pyplot(fig)
+                st.metric("Probability > Current Price", f"{prob_up:.2%}")
+                st.metric("Mean Ending Price", f"${np.mean(ending_prices):.2f}")
+                st.metric("Median Ending Price", f"${np.median(ending_prices):.2f}")
+                st.metric("25th Percentile", f"${np.percentile(ending_prices, 25):.2f}")
+                st.metric("75th Percentile", f"${np.percentile(ending_prices, 75):.2f}")
 
-        except Exception as e:
-            st.error(f"Error with {ticker}: {e}")
+                fig, ax = plt.subplots()
+                ax.plot(paths)
+                ax.set_title(f"Monte Carlo Simulation: {ticker}")
+                ax.set_xlabel("Days")
+                ax.set_ylabel("Price")
+                st.pyplot(fig)
+
+            except Exception as e:
+                st.error(f"Error with {ticker}: {e}")
