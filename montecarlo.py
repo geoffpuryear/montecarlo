@@ -220,8 +220,8 @@ with tab2:
                 min_length = min([len(d) for d in all_data])
                 aligned_data = [d["Close"].iloc[-min_length:].pct_change().dropna() for d in all_data]
                 combined_returns = sum(w * r for w, r in zip(weight_list, aligned_data))
-                total_return_1y = (1 + combined_returns[-252:]).prod() - 1
-                cagr_5y = (1 + combined_returns[-1260:]).prod() ** (1/5) - 1
+                total_return_1y = float((1 + combined_returns[-252:]).prod() - 1)
+                cagr_5y = float((1 + combined_returns[-1260:]).prod() ** (1/5) - 1)
             except:
                 total_return_1y = None
                 cagr_5y = None
