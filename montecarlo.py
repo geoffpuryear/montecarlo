@@ -4,21 +4,25 @@ import matplotlib.pyplot as plt
 import yfinance as yf
 import pandas as pd
 
-st.title("Monte Carlo Stock Price Simulator")
+st.set_page_config(page_title="Monte Carlo Simulator", layout="wide")
+st.title("📈 Monte Carlo Stock Price Simulator")
 
-tickers = st.text_input("Enter tickers (e.g. AAPL, MSFT, JPM):")
+# === Sidebar Controls ===
+with st.sidebar:
+    st.header("Simulation Settings")
+    tickers = st.text_input("Enter tickers (comma-separated)", "AAPL, MSFT")
+    n_days = st.slider("Simulation Days", 30, 365, 252)
+    n_simulations = st.slider("Number of Simulations", 100, 5000, 1000)
 
-n_days = st.slider("Simulation Days", 30, 365, 252)
-n_simulations = st.slider("Number of Simulations", 100, 5000, 1000)
+    market_adjust = st.checkbox("Use CAPM for Expected Return")
+    if market_adjust:
+        market_return = st.number_input("Expected Market Return", value=0.0)
+        risk_free_rate = st.number_input("Risk-Free Rate", value=0.0)
 
-market_adjust = st.checkbox("Adjust expected return using CAPM?")
-if market_adjust:
-    market_return = st.number_input("Expected Market Return", value=0.0)
-    risk_free_rate = st.number_input("Risk-Free Rate", value=0.0)
+    use_implied_vol = st.radio("Volatility Source", ["Implied", "Manual"], index=0)
+    manual_sigma = st.number_input("Manual Volatility (e.g. 0.25)", value=0.25)
 
-use_implied_vol = st.radio("Volatility Source", ["Implied", "Manual"], index=0)
-manual_sigma = st.number_input("Manual Volatility (e.g. 0.25)", value=0.25)
-
+# === Data Utilities ===
 @st.cache_data
 def fetch_data(ticker):
     return yf.download(ticker, period="6mo", progress=False)
@@ -53,6 +57,7 @@ def simulate(S0, mu, sigma, n_days, n_simulations):
         paths[t] = paths[t-1] * np.exp((mu - 0.5 * sigma**2)*dt + sigma*np.sqrt(dt)*z)
     return paths
 
+# === Main Display ===
 if tickers:
     ticker_list = [t.strip().upper() for t in tickers.split(",")]
     tabs = st.tabs(ticker_list)
@@ -62,8 +67,7 @@ if tickers:
             try:
                 data = fetch_data(ticker)
                 current_price = float(data["Close"].iloc[-1])
-                st.subheader(f"{ticker}")
-                st.metric(f"{ticker} Current Price", f"${current_price:.2f}")
+                st.subheader(f"{ticker} - Current Price: ${current_price:.2f}")
 
                 sigma = get_implied_volatility(ticker) if use_implied_vol == "Implied" else manual_sigma
                 if sigma is None or sigma < 1e-5:
@@ -73,9 +77,9 @@ if tickers:
                 beta = get_beta(ticker)
                 mu = (risk_free_rate + beta * (market_return - risk_free_rate)) if market_adjust else 0.0
 
-                st.write(f"Volatility: {sigma:.2%}")
+                st.markdown(f"**Volatility (σ):** {sigma:.2%}")
                 if market_adjust:
-                    st.write(f"Expected return via CAPM: {mu:.2%} (Beta = {beta:.2f})")
+                    st.markdown(f"**Expected return via CAPM (μ):** {mu:.2%} (β = {beta:.2f})")
 
                 paths = simulate(current_price, mu, sigma, n_days, n_simulations)
                 ending_prices = paths[-1]
@@ -86,18 +90,21 @@ if tickers:
                 p75 = np.percentile(ending_prices, 75)
                 prob_up = np.mean(ending_prices > current_price)
 
-                st.metric(f"{ticker} Probability > Current Price", f"{prob_up:.2%}")
-                st.metric(f"{ticker} Mean Ending Price", f"${mean_price:.2f}")
-                st.metric(f"{ticker} Median Ending Price", f"${median_price:.2f}")
-                st.metric(f"{ticker} 25th Percentile", f"${p25:.2f}")
-                st.metric(f"{ticker} 75th Percentile", f"${p75:.2f}")
+                col1, col2, col3 = st.columns(3)
+                col1.metric("📈 Mean Ending Price", f"${mean_price:.2f}")
+                col2.metric("🔻 25th Percentile", f"${p25:.2f}")
+                col3.metric("🔺 75th Percentile", f"${p75:.2f}")
+
+                col4, col5 = st.columns(2)
+                col4.metric("📊 Median", f"${median_price:.2f}")
+                col5.metric("💡 Probability Up", f"{prob_up:.2%}")
 
                 fig, ax = plt.subplots()
                 ax.plot(paths, linewidth=0.7)
-                ax.set_title(f"Monte Carlo Simulation: {ticker}")
+                ax.set_title(f"Monte Carlo Simulation for {ticker}")
                 ax.set_xlabel("Days")
-                ax.set_ylabel("Price")
+                ax.set_ylabel("Simulated Price")
                 st.pyplot(fig)
 
             except Exception as e:
-                st.error(f"Error with {ticker}: {e}")
+                st.error(f"Error simulating {ticker}: {e}")
