@@ -243,10 +243,6 @@ with tab2:
             except:
                 total_return_1y = None
                 cagr_5y = None
-                
-            except:
-                total_return_1y = None
-                cagr_5y = None
 
             col1, col2 = st.columns([2, 1])
             with col1:
