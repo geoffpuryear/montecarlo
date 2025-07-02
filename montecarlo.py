@@ -71,32 +71,38 @@ if tickers:
                 current_price = float(data["Close"].iloc[-1])
                 st.subheader(f"{ticker} — Current Price: ${current_price:.2f}")
 
-                # === Volatility logic
+                # === Volatility
+                fallback_sigma = 0.20
                 sigma = get_implied_volatility(ticker) if use_implied_vol == "Implied" else manual_sigma
-                if sigma is None:
-                    st.warning(f"Could not retrieve implied volatility for {ticker}. Using manual or fallback value.")
-                    sigma = manual_sigma
-                if sigma < 0.05:
-                    st.warning(f"Implied volatility for {ticker} is suspiciously low. Setting fallback value of 0.20.")
-                    sigma = 0.20  # fallback volatility
 
-                # === Return logic
+                if sigma is None:
+                    sigma = fallback_sigma
+                    if show_debug:
+                        st.warning(f"{ticker}: No implied volatility found. Using fallback σ = {fallback_sigma:.2f}")
+                elif sigma < 0.05:
+                    if show_debug:
+                        st.warning(f"{ticker}: Implied volatility too low ({sigma:.2f}). Using fallback σ = {fallback_sigma:.2f}")
+                    sigma = fallback_sigma
+
+                # === Expected Return (mu)
                 beta = get_beta(ticker)
                 mu = (risk_free_rate + beta * (market_return - risk_free_rate)) if market_adjust else 0.0
 
                 if show_debug:
-                    st.code(f"mu: {mu:.4f}, sigma: {sigma:.4f}, beta: {beta:.2f}")
+                    st.code(f"{ticker} → μ: {mu:.4f}, σ: {sigma:.4f}, β: {beta:.2f}")
 
                 # === Simulate
                 paths = simulate(current_price, mu, sigma, n_days, n_simulations)
                 ending_prices = paths[-1]
 
+                # === Summary Stats
                 mean_price = np.mean(ending_prices)
                 median_price = np.median(ending_prices)
                 p25 = np.percentile(ending_prices, 25)
                 p75 = np.percentile(ending_prices, 75)
                 prob_up = np.mean(ending_prices > current_price)
 
+                # === Layout
                 col1, col2, col3 = st.columns(3)
                 col1.metric("📈 Mean Ending Price", f"${mean_price:.2f}")
                 col2.metric("🔻 25th Percentile", f"${p25:.2f}")
