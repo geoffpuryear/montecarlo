@@ -234,15 +234,15 @@ with tab2:
                 min_length = min([len(d) for d in all_data])
                 aligned_data = [d["Close"].iloc[-min_length:].pct_change().dropna() for d in all_data]
                 combined_returns = sum(w * r for w, r in zip(weight_list, aligned_data))
-            try:
-                prod_1y = (1 + combined_returns[-252:]).prod()
-                total_return_1y = float(prod_1y.item()) if hasattr(prod_1y, "item") else float(prod_1y - 1)
+                    try:
+        prod_1y = (1 + combined_returns[-252:]).prod()
+        total_return_1y = float(prod_1y.item()) if hasattr(prod_1y, "item") else float(prod_1y - 1)
 
-                prod_5y = (1 + combined_returns[-1260:]).prod()
-                cagr_5y = float(prod_5y ** (1/5) - 1)
-            except:
-                total_return_1y = None
-                cagr_5y = None
+        prod_5y = (1 + combined_returns[-1260:]).prod()
+        cagr_5y = float(prod_5y ** (1/5) - 1)
+    except:
+        total_return_1y = None
+        cagr_5y = None
                 
             except:
                 total_return_1y = None
