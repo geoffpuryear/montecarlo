@@ -121,3 +121,81 @@ with tab1:
 
                 except Exception as e:
                     st.error(f"Error processing {ticker}: {e}")
+
+# === Portfolio Simulation ===
+with tab2:
+    st.header("Portfolio Simulation")
+    tickers_input = st.text_input("Enter tickers for portfolio (comma-separated)", "AAPL, MSFT, TSLA")
+    weights_input = st.text_input("Enter weights (comma-separated, must sum to 1)", "0.4, 0.4, 0.2")
+
+    ticker_list = [t.strip().upper() for t in tickers_input.split(",")]
+    weight_list = [float(w.strip()) for w in weights_input.split(",")]
+
+    if len(ticker_list) != len(weight_list):
+        st.error("Number of tickers and weights must match.")
+    elif not np.isclose(sum(weight_list), 1.0):
+        st.error("Weights must sum to 1.0")
+    else:
+        all_paths = []
+        fallback_sigma = 0.20
+
+        for ticker in ticker_list:
+            try:
+                data = fetch_data(ticker)
+                if data is None or data.empty:
+                    st.warning(f"No data for {ticker}")
+                    continue
+                current_price = float(data["Close"].iloc[-1])
+
+                sigma = get_implied_volatility(ticker) if use_implied_vol == "Implied" else manual_sigma
+                if sigma is None or sigma < 0.05:
+                    sigma = fallback_sigma
+                    if show_debug:
+                        st.warning(f"{ticker}: Using fallback volatility {sigma:.2f}")
+
+                beta = get_beta(ticker)
+                mu = (risk_free_rate + beta * (market_return - risk_free_rate)) if use_capm else 0.0
+
+                paths = simulate(current_price, mu, sigma, n_days, n_simulations)
+                all_paths.append(paths)
+
+            except Exception as e:
+                st.error(f"Error processing {ticker}: {e}")
+
+        if all_paths:
+            normalized_paths = [paths / paths[0] for paths in all_paths]
+            weighted_paths = [w * norm for w, norm in zip(weight_list, normalized_paths)]
+            portfolio_paths = sum(weighted_paths) * 100
+
+            ending_values = portfolio_paths[-1]
+            mean_end = np.mean(ending_values)
+            median_end = np.median(ending_values)
+            p5 = np.percentile(ending_values, 5)
+            p95 = np.percentile(ending_values, 95)
+            prob_above_100 = np.mean(ending_values > 100)
+            std_dev = np.std(ending_values)
+            sharpe_ratio = (mean_end - 100) / std_dev if std_dev > 0 else 0
+            downside_returns = ending_values[ending_values < 100]
+            downside_std = np.std(downside_returns) if len(downside_returns) > 0 else 1
+            sortino_ratio = (mean_end - 100) / downside_std if downside_std > 0 else 0
+
+            st.subheader("📈 Portfolio Simulation Summary")
+            st.metric("Mean Ending Value", f"${mean_end:.2f}")
+            st.metric("Median Ending Value", f"${median_end:.2f}")
+            st.metric("5th Percentile", f"${p5:.2f}")
+            st.metric("95th Percentile", f"${p95:.2f}")
+            st.metric("Probability > $100", f"{prob_above_100:.2%}")
+            st.metric("Sharpe Ratio", f"{sharpe_ratio:.2f}")
+            st.metric("Sortino Ratio", f"{sortino_ratio:.2f}")
+
+            fig, ax = plt.subplots(figsize=(10, 5))
+            ax.plot(portfolio_paths, linewidth=0.5, alpha=0.7)
+            ax.set_title("Simulated Portfolio Value Over Time")
+            ax.set_xlabel("Days")
+            ax.set_ylabel("Portfolio Value ($)")
+            st.pyplot(fig)
+
+            if show_debug:
+                st.write("Tickers:", ticker_list)
+                st.write("Weights:", weight_list)
+                st.write("Volatilities:", [get_implied_volatility(t) for t in ticker_list])
