@@ -143,10 +143,8 @@ with tab1:
                         st.metric("25th Percentile", f"${p25:.2f}")
                         st.metric("75th Percentile", f"${p75:.2f}")
                         st.metric("Probability > Current", f"{prob_up:.2%}")
-                        if one_year_return is not None:
-                            st.metric("1Y Historical Return", f"{one_year_return:.2%}")
-                        if five_year_cagr is not None:
-                            st.metric("5Y CAGR", f"{five_year_cagr:.2%}")
+                        st.metric("1Y Historical Return", f"{one_year_return:.2%}" if one_year_return is not None else "N/A")
+                        st.metric("5Y CAGR", f"{five_year_cagr:.2%}" if five_year_cagr is not None else "N/A")
                     with col1:
                         fig, ax = plt.subplots(figsize=(6, 4))
                         ax.plot(paths, linewidth=0.7)
@@ -218,7 +216,6 @@ with tab2:
             downside_std = np.std(downside_returns) if len(downside_returns) > 0 else 1
             sortino_ratio = (mean_end - 100) / downside_std if downside_std > 0 else 0
 
-            # Historical returns for portfolio (equal-weighted)
             try:
                 min_length = min([len(d) for d in all_data])
                 aligned_data = [d["Close"].iloc[-min_length:].pct_change().dropna() for d in all_data]
@@ -246,10 +243,8 @@ with tab2:
                 st.metric("Probability > $100", f"{prob_above_100:.2%}")
                 st.metric("Sharpe Ratio", f"{sharpe_ratio:.2f}")
                 st.metric("Sortino Ratio", f"{sortino_ratio:.2f}")
-                if total_return_1y is not None:
-                    st.metric("1Y Historical Return", f"{total_return_1y:.2%}")
-                if cagr_5y is not None:
-                    st.metric("5Y CAGR", f"{cagr_5y:.2%}")
+                st.metric("1Y Historical Return", f"{total_return_1y:.2%}" if total_return_1y is not None else "N/A")
+                st.metric("5Y CAGR", f"{cagr_5y:.2%}" if cagr_5y is not None else "N/A")
 
             if show_debug:
                 st.write("Tickers:", ticker_list)
