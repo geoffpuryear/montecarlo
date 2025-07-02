@@ -3,6 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import yfinance as yf
 import pandas as pd
+from datetime import datetime, timedelta
 
 st.set_page_config(page_title="Monte Carlo Dashboard", layout="wide")
 st.title("📊 Monte Carlo Simulation Dashboard")
@@ -26,6 +27,12 @@ with st.sidebar:
 def fetch_data(ticker):
     try:
         return yf.download(ticker, period="6mo", progress=False)
+    except:
+        return None
+
+def fetch_full_history(ticker):
+    try:
+        return yf.download(ticker, period="10y", progress=False)
     except:
         return None
 
@@ -59,6 +66,31 @@ def simulate(S0, mu, sigma, n_days, n_simulations):
         paths[t] = paths[t-1] * np.exp((mu - 0.5 * sigma**2) * dt + sigma * np.sqrt(dt) * z)
     return paths
 
+def get_historical_returns(data):
+    try:
+        today = data.index[-1]
+        one_year_ago = today - timedelta(days=365)
+        five_years_ago = today - timedelta(days=5*365)
+
+        one_year_return = None
+        five_year_cagr = None
+
+        if one_year_ago in data.index:
+            one_year_return = (data.loc[today, "Close"] / data.loc[one_year_ago, "Close"]) - 1
+        else:
+            close_one_year = data[data.index <= one_year_ago]["Close"].iloc[-1]
+            one_year_return = (data["Close"].iloc[-1] / close_one_year) - 1
+
+        if five_years_ago in data.index:
+            five_year_cagr = (data.loc[today, "Close"] / data.loc[five_years_ago, "Close"]) ** (1/5) - 1
+        else:
+            close_five_year = data[data.index <= five_years_ago]["Close"].iloc[-1]
+            five_year_cagr = (data["Close"].iloc[-1] / close_five_year) ** (1/5) - 1
+
+        return one_year_return, five_year_cagr
+    except:
+        return None, None
+
 # === Tabs ===
 tab1, tab2 = st.tabs(["📈 Single Stock Simulation", "📊 Portfolio Simulation"])
 
@@ -75,6 +107,7 @@ with tab1:
             with single_tabs[i]:
                 try:
                     data = fetch_data(ticker)
+                    full_data = fetch_full_history(ticker)
                     if data is None or data.empty:
                         st.warning(f"No data for {ticker}")
                         continue
@@ -101,6 +134,8 @@ with tab1:
                     p75 = np.percentile(ending_prices, 75)
                     prob_up = np.mean(ending_prices > current_price)
 
+                    one_year_return, five_year_cagr = get_historical_returns(full_data)
+
                     col1, col2 = st.columns([2, 1])
                     with col2:
                         st.metric("Mean Ending Price", f"${mean_price:.2f}")
@@ -108,6 +143,10 @@ with tab1:
                         st.metric("25th Percentile", f"${p25:.2f}")
                         st.metric("75th Percentile", f"${p75:.2f}")
                         st.metric("Probability > Current", f"{prob_up:.2%}")
+                        if one_year_return is not None:
+                            st.metric("1Y Historical Return", f"{one_year_return:.2%}")
+                        if five_year_cagr is not None:
+                            st.metric("5Y CAGR", f"{five_year_cagr:.2%}")
                     with col1:
                         fig, ax = plt.subplots(figsize=(6, 4))
                         ax.plot(paths, linewidth=0.7)
@@ -134,11 +173,13 @@ with tab2:
         st.error("Weights must sum to 1.0")
     else:
         all_paths = []
+        all_data = []
         fallback_sigma = 0.20
 
         for ticker in ticker_list:
             try:
                 data = fetch_data(ticker)
+                full_data = fetch_full_history(ticker)
                 if data is None or data.empty:
                     st.warning(f"No data for {ticker}")
                     continue
@@ -155,6 +196,7 @@ with tab2:
 
                 paths = simulate(current_price, mu, sigma, n_days, n_simulations)
                 all_paths.append(paths)
+                all_data.append(full_data)
 
             except Exception as e:
                 st.error(f"Error processing {ticker}: {e}")
@@ -176,6 +218,17 @@ with tab2:
             downside_std = np.std(downside_returns) if len(downside_returns) > 0 else 1
             sortino_ratio = (mean_end - 100) / downside_std if downside_std > 0 else 0
 
+            # Historical returns for portfolio (equal-weighted)
+            try:
+                min_length = min([len(d) for d in all_data])
+                aligned_data = [d["Close"].iloc[-min_length:].pct_change().dropna() for d in all_data]
+                combined_returns = sum(w * r for w, r in zip(weight_list, aligned_data))
+                total_return_1y = (1 + combined_returns[-252:]).prod() - 1
+                cagr_5y = (1 + combined_returns[-1260:]).prod() ** (1/5) - 1
+            except:
+                total_return_1y = None
+                cagr_5y = None
+
             col1, col2 = st.columns([2, 1])
             with col1:
                 fig, ax = plt.subplots(figsize=(6, 4))
@@ -193,6 +246,10 @@ with tab2:
                 st.metric("Probability > $100", f"{prob_above_100:.2%}")
                 st.metric("Sharpe Ratio", f"{sharpe_ratio:.2f}")
                 st.metric("Sortino Ratio", f"{sortino_ratio:.2f}")
+                if total_return_1y is not None:
+                    st.metric("1Y Historical Return", f"{total_return_1y:.2%}")
+                if cagr_5y is not None:
+                    st.metric("5Y CAGR", f"{cagr_5y:.2%}")
 
             if show_debug:
                 st.write("Tickers:", ticker_list)
