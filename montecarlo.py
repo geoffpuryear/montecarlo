@@ -11,7 +11,9 @@ st.set_page_config(page_title="Monte Carlo Stock Simulator", layout="wide")
 st.title("📈 Monte Carlo Stock Price Simulator")
 
 # Sidebar inputs
-tickers = st.sidebar.text_input("Enter stock tickers (comma-separated)", value="AAPL,MSFT").upper().split(",")
+tickers_input = st.sidebar.text_input("Enter stock tickers (comma-separated)", value="AAPL,MSFT")
+tickers = [t.strip().upper() for t in tickers_input.split(",") if t.strip()]
+
 start_date = st.sidebar.date_input("Start date for historical data", value=datetime(2020, 1, 1))
 sim_days = st.sidebar.slider("Days to simulate", 30, 365, 252)
 num_simulations = st.sidebar.slider("Number of simulations", 100, 5000, 1000, step=100)
@@ -19,16 +21,26 @@ recession = st.sidebar.checkbox("🔻 Recession scenario (lower returns, higher 
 
 # Simulation function
 def run_simulation(ticker, sims, days, recession_mode):
-    df = yf.download(ticker, start=start_date)
-    if df.empty:
-        st.warning(f"Could not retrieve data for {ticker}")
+    df = yf.download(ticker, start=start_date, progress=False)
+
+    # Handle MultiIndex case if multiple tickers were fetched accidentally
+    if isinstance(df.columns, pd.MultiIndex):
+        df = df['Adj Close']
+    elif 'Adj Close' not in df.columns:
+        st.warning(f"Could not find 'Adj Close' for {ticker}.")
         return None
 
-    df = df['Adj Close']
+    df = df['Adj Close'].dropna()
+    if df.empty or len(df) < 2:
+        st.warning(f"Not enough data to simulate for {ticker}.")
+        return None
+
+    # Calculate daily log returns
     log_returns = np.log(df / df.shift(1)).dropna()
     mu = log_returns.mean()
     sigma = log_returns.std()
 
+    # Adjust for recession scenario
     if recession_mode:
         mu *= 0.5
         sigma *= 1.25
@@ -40,15 +52,14 @@ def run_simulation(ticker, sims, days, recession_mode):
 
     for t in range(1, days):
         z = np.random.standard_normal(sims)
-        price_paths[t] = price_paths[t - 1] * np.exp((mu - 0.5 * sigma ** 2) * dt + sigma * np.sqrt(dt) * z)
+        price_paths[t] = price_paths[t - 1] * np.exp((mu - 0.5 * sigma**2) * dt + sigma * np.sqrt(dt) * z)
 
     return price_paths, last_price, mu, sigma
 
 # Run simulation for each ticker
 for ticker in tickers:
-    ticker = ticker.strip()
     st.subheader(f"📊 Simulation for {ticker}")
-    
+
     result = run_simulation(ticker, num_simulations, sim_days, recession)
     if result is None:
         continue
@@ -68,8 +79,8 @@ for ticker in tickers:
     # Summary stats
     final_prices = price_paths[-1]
     st.write(f"**Final price distribution for {ticker}:**")
-    st.write(f"Expected mean: ${final_prices.mean():.2f}")
-    st.write(f"5th percentile: ${np.percentile(final_prices, 5):.2f}")
-    st.write(f"95th percentile: ${np.percentile(final_prices, 95):.2f}")
-    st.write(f"Estimated daily return: {mu:.4f}")
-    st.write(f"Estimated daily volatility: {sigma:.4f}")
+    st.metric("Expected Mean", f"${final_prices.mean():.2f}")
+    st.metric("5th Percentile", f"${np.percentile(final_prices, 5):.2f}")
+    st.metric("95th Percentile", f"${np.percentile(final_prices, 95):.2f}")
+    st.write(f"Estimated daily return: `{mu:.4f}`")
+    st.write(f"Estimated daily volatility: `{sigma:.4f}`")
